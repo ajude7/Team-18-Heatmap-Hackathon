@@ -1,0 +1,186 @@
+---
+title: "Key Findings"
+author: "Aleen Jude"
+date: "2026-03-12"
+output:
+  pdf_document: default
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Load Packages
+```{r}
+options(repos = c(CRAN = "https://cloud.r-project.org/"))
+```
+
+```{r}
+install.packages("readxl")
+library(readxl)
+```
+
+```{r}
+heatmap <- read_excel("~/Downloads/NIRD 20230130 Database_Hackathon.xlsx", sheet = 2)
+```
+
+```{r}
+install.packages(c("tidygeocoder", "ggplot2", "sf", "leaflet"))
+library(tidygeocoder)
+library(ggplot2)
+library(sf)
+library(leaflet)
+```
+
+```{r}
+#Retrieve spatial data for plotting
+geocoded_data <- heatmap %>%
+  geocode(street = ADDRESS, city = CITY, state = STATE_FULL, postalcode = ZIP_CODE, method = "osm", lat = latitude, long = longitude)
+```
+
+```{r}
+###Subset Geocoded Data by State for NW United States
+Montana <- geocoded_data[geocoded_data$STATE_FULL == "Montana",] 
+
+#Billings clinic is lvI trauma center post-creation of NIRD dataset -> recode it as LVI
+Montana[3, 16] <- 1
+Montana[3, 17] <- NA
+Idaho <- geocoded_data[geocoded_data$STATE_FULL == "Idaho",]
+SD <- geocoded_data[geocoded_data$STATE_FULL == "South Dakota",]
+###some missing data, manually input longitutde and latitude using latlong.net geocode tools
+ND <- geocoded_data[geocoded_data$STATE_FULL == "North Dakota",]
+ND[3, 24] <- 46.832719
+ND[3, 25] <- -96.798406
+ND[4, 24] <- 46.874075
+ND[4, 25] <- -96.788057
+WY <- geocoded_data[geocoded_data$STATE_FULL == "Wyoming",]
+###some missing data for WY, manually input longitutde and latitude
+WA <- geocoded_data[geocoded_data$STATE == "WA",]
+WA[3, 24] <- 47.133160
+WA[3, 25] <- -122.492532
+OR <- geocoded_data[geocoded_data$STATE == "OR",]
+###some missing data for OR, manually input longitutde and latitude
+OR[4,24] <- 44.081564
+OR[4, 25] <- -123.026697
+UT <- geocoded_data[geocoded_data$STATE_FULL == "Utah",]
+###some missing data for UT, manually input longitutde and latitude
+UT[1, 24] <- 40.686244
+UT[1, 25] <- -111.857494
+UT[2, 24] <- 40.632114
+UT[2, 25] <- -111.899611
+CO <- geocoded_data[geocoded_data$STATE_FULL == "Colorado",]
+###some missing data for CO, manually input longitutde and latitude
+CO[6, 24] <- 39.576425
+CO[6, 25] <- -104.986152
+CO[10, 24] <- 39.534390
+CO[10, 25] <- -104.898072
+NE <- geocoded_data[geocoded_data$STATE_FULL == "Nebraska",]
+##Combine Clinics for Northwest Region
+west_states <- rbind(Montana, Idaho, SD, ND, WY, WA, OR, UT, CO, NE)
+#subset any clinics with burn beds, regardless of designation
+burn_beds <- west_states[which(west_states$BURN_BEDS != is.na(NA)),]
+#subset aba-verified burn centers
+burn_centers_ABA <- west_states[which(west_states$ABA_VERIFIED == "Yes"),]
+#subset state-designated burn centers
+burn_centers_SD <- west_states[which(west_states$BC_STATE_DESIGNATED == "Yes"),]
+#merge any type of burn care (burn beds, aba-verified centers, or state-designated burn centers)
+burn_capacity <- rbind(burn_beds, burn_centers_ABA, burn_centers_SD)
+#ensure only unique centers are present
+burn_capacity <- unique(burn_capacity)
+#subset burn centers designated for adults
+burn_capacity_adults <- burn_capacity[which(burn_capacity$BURN_ADULT == 1), ]
+#subset burn centers designated for peds & adults
+burn_capacity_peds <- burn_capacity[which(burn_capacity$BURN_PEDS == 1), ]
+#subset LVI trauma centers with pediatric and/or adult capacity
+tc_1 <- west_states[which(west_states$ADULT_TRAUMA_L1 == 1 | west_states$PEDS_TRAUMA_L1 == 1),]
+#subset LVII trauma centers with pediatric and/or adult capacity
+tc_2 <- west_states[which(west_states$ADULT_TRAUMA_L2 == 1 | west_states$PEDS_TRAUMA_L2 == 1 ),]
+#merge LVI and LVII trauma centers with pediactric and/or adult capacity
+tc_12 <- rbind(tc_1, tc_2)
+#ensure only unique centers are present
+tc_12 <- unique(tc_12)
+tc_12_mt <- tc_12[which(tc_12$STATE_FULL == "Montana"),]
+#subset LVI and LVII trauma centers based on adult trauma capacity
+tc_12_adults <- tc_12[which(tc_12$TRAUMA_ADULT == 1), ]
+tc_12_adults_mt <- tc_12_mt[which(tc_12_mt$TRAUMA_ADULT == 1), ]
+#subset LVI and LVII trauma centers based on pediatric trauma capacity
+tc_12_peds<- tc_12[which(tc_12$TRAUMA_PEDS == 1), ]
+tc_12_peds_mt <- tc_12[which(tc_12_mt$TRAUMA_PEDS == 1), ]
+###manually create geocoded data for county seats in four counties of interest in MT
+counties_df <- data.frame(
+  Name = c("Missoula", "Kalispell", "Hamilton", "Polson"),
+  longitude = c(-113.9940, -114.3168, -114.1548, -114.1631),
+  latitude = c(46.8721, 48.1920, 46.2471, 47.6932))
+loc_counties <- st_as_sf(counties_df, coords = c("longitude", "latitude"), crs = 4326)
+```
+
+
+```{r}
+#All Clinics (trauma centers and burn centers)
+loc_sf_west <- st_as_sf(west_states, coords = c("longitude", "latitude"), crs = 4326)
+#Burn Capacity by Designation
+loc_sf_beds <- st_as_sf(burn_beds, coords = c("longitude", "latitude"), crs = 4326)
+loc_sf_aba <- st_as_sf(burn_centers_ABA, coords = c("longitude", "latitude"), crs = 4326)
+loc_sf_sd <- st_as_sf(burn_centers_SD, coords = c("longitude", "latitude"), crs = 4326)
+#Total Burn Capacity by Age
+loc_sf_burn <- st_as_sf(burn_capacity, coords = c("longitude", "latitude"), crs = 4326)
+loc_sf_burn_adults <- st_as_sf(burn_capacity_adults, coords = c("longitude", "latitude"), crs = 4326)
+loc_sf_burn_peds <- st_as_sf(burn_capacity_peds, coords = c("longitude", "latitude"), crs = 4326)
+#Total Trauma Capacity
+loc_sf_tc1<- st_as_sf(tc_1, coords = c("longitude", "latitude"), crs = 4326)
+loc_sf_tc2 <- st_as_sf(tc_2, coords = c("longitude", "latitude"), crs = 4326)
+loc_sf_tc12 <- st_as_sf(tc_12, coords = c("longitude", "latitude"), crs = 4326)
+loc_sf_tc12_mt <- st_as_sf(tc_12_mt, coords = c("longitude", "latitude"), crs = 4326)
+loc_sf_tc_adults <- st_as_sf(tc_12_adults, coords = c("longitude", "latitude"), crs = 4326)
+loc_sf_tc_adults_mt <- st_as_sf(tc_12_adults_mt, coords = c("longitude", "latitude"), crs = 4326)
+loc_sf_tc_peds <- st_as_sf(tc_12_peds, coords = c("longitude", "latitude"), crs = 4326)
+loc_sf_tc_peds_mt <- st_as_sf(tc_12_peds_mt, coords = c("longitude", "latitude"), crs = 4326)
+```
+
+###Key Finding #1 Map -- Trauma and Burn Centers in Northwestern United States
+```{r}
+##Plot Data
+# Get usa map data
+states <- c("Idaho", "Colorado", "Wyoming", "Utah", "Washington", "Oregon", "South Dakota", "Montana", "North Dakota", "Nebraska", "Wyoming", "California", "Nevada", "Kansas")
+county_lines <- map_data("county", region = states)
+state_lines <- map_data("state", region = states)
+#Plot Trauma Capacity
+ggplot() +
+  # Plot the base map
+  geom_polygon(data = county_lines, aes(x = long, y = lat, group = group), fill = "lightgrey", color = "white") + #plot county boundaries for NW region
+  geom_polygon(data = state_lines, aes(x = long, y = lat, group = group), fill = NA, color = "black") + #plot state boundaries for NW region
+  # Add your location points
+  geom_sf(data = loc_sf_tc12_mt, color = "blue", size = 2) + #plot lvi and lvii trauma centers in montana
+  geom_sf(data = loc_sf_tc_adults_mt, color = "green", size = 3, shape = 23) + #plot centers with adult trauma designation
+  geom_sf(data = loc_sf_tc_peds_mt, color = "purple", size = 4, shape = 24) + #plot centers with pediactric trauma designation
+  geom_sf(data = loc_sf_burn, color = "orange", size = 2) + #plot centers with any burn capacity (burn beds, aba-verified, state-desigated)
+  geom_sf(data = loc_sf_burn_adults, color = "green", size = 4, shape = 23) + #plot adult burn capacity
+  geom_sf(data = loc_sf_burn_peds, color = "purple", size = 5, shape = 10) + #plot pediatric burn capacity
+  geom_sf(data = loc_sf_aba, color = "darkred", size = 2) + #plot aba-verified centers
+  # Set the coordinate limits and CRS for proper display
+  coord_sf(crs = 4326) +
+  labs(title = "Trauma and Burn Centers in Nortwestern U.S. (Adult vs Peds Capacity)") +
+  theme_minimal()
+```
+
+###Key Finding #2 Map
+```{r}
+##Plot Data
+# Get usa map data
+state <- "Montana"
+county_lines <- map_data("county", region = state)
+state_lines <- map_data("state", region = state)
+#Plot Trauma Capacity
+ggplot() +
+  # Plot the base map
+  geom_polygon(data = county_lines, aes(x = long, y = lat, group = group), fill = "lightgrey", color = "white") + #plot county boundaries for Montana
+  geom_polygon(data = state_lines, aes(x = long, y = lat, group = group), fill = NA, color = "black") + #plot state boundaries for Montana
+  # Add your location points
+  geom_sf(data = loc_sf_tc12_mt, color = "blue", size = 4) + #plot lvi and lvii trauma centers in montana
+  geom_sf(data = loc_sf_tc_adults_mt, color = "green", size = 5, shape = 23) + #plot centers with adult trauma designation
+  geom_sf(data = loc_sf_tc_peds_mt, color = "purple", size = 6, shape = 24) + #plot centers with pediactric trauma designation
+  geom_sf(data = loc_counties, color = "black", size = 4, shape = 10) + #plot county seats for Flathead, Ravalli, Lake, and Missoula
+  # Set the coordinate limits and CRS for proper display
+  coord_sf(crs = 4326) +
+  labs(title = "Trauma Centers in Montana (Adult vs Peds Capacity)") +
+  theme_minimal()
+```
