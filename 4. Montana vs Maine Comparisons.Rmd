@@ -1,0 +1,99 @@
+---
+title: "Maine vs Montana Health Infrastructure"
+author:
+date: "2026-03-11"
+output:
+  pdf_document: default
+  word_document: default
+---
+
+Maine Data Sources:
+  Critical Hospitals → 18
+  
+  https://www.ruralhealthinfo.org/states/maine 
+  
+  Hospitals → 32
+  
+  https://www.themha.org/hospitals.html 
+  
+  Long-Term Care → 78
+  
+  https://themainemonitor.org/healthcare-closure-maps/ 
+  
+  EMS → 269
+  
+  https://www.maineaap.org/assets/conferences/I-called-911-now-what_Maine-AAP-Conferencepdf.pdf 
+  
+  Public Health Depts → 9
+  
+  https://www.maine.gov/dhhs/mecdc/healthy-living/healthy-communities/public-health-districts
+  
+  
+Montana Data Source:
+
+Montana Health Care Coalitions. (2025). Western Montana Health Care Coalition Burn Mass Casualty Incident Surge Annex. 
+
+https://www.mthcc.org/wp-content/uploads/2025/11/WMHCC-Burn-MCI-Surge-Annex-20250630-Final.pdf
+
+
+```{r}
+data <- data.frame(
+  facility = c("Hospitals", "Critical Access Hospitals", "EMS", 
+               "VA Nursing Home", "Urban Indian Clinics", 
+               "LongTerm Care Facilities", 
+               "Public Health Departments", "Tribal Health Department", 
+               "Burn Centers"),
+  count = c(5, 11, 49, 1, 3, 22, 12, 1, 0)
+)
+
+library(ggplot2)
+
+ggplot(data, aes(x = facility, y = count, fill = facility == "Burn Centers")) +
+  geom_col(fill = "seagreen") + 
+  coord_flip() +
+  labs(title = "Healthcare Infrastructure in Western Montana", 
+  subtitle = "Despite 60+ medical facilities, there are no burn centers 
+  in the entirety of Montana",
+  x = "", y = "Number of Facilities") + theme_minimal()
+
+comparison_data <- data.frame(
+  region = c(
+    "Western Montana (WMHCC)", "Western Montana (WMHCC)",
+    "Western Montana (WMHCC)", "Western Montana (WMHCC)",
+    "Western Montana (WMHCC)", "Western Montana (WMHCC)",
+    "Maine", "Maine",
+    "Maine", "Maine",
+    "Maine", "Maine"
+  ),
+  facility = c(
+    "Hospitals", "Critical Access Hospitals", "EMS Units",
+    "Long-Term Care", "Public Health Depts", "Burn Centers",
+    "Hospitals", "Critical Access Hospitals", "EMS Units",
+    "Long-Term Care", "Public Health Depts", "Burn Centers"
+  ),
+  count = c(
+    5, 11, 49, 22, 12, 0,    # Western Montana (WMHCC)
+    32, 18, 269, 78, 9, 1    # Maine Statewide
+  )
+)
+
+ggplot(comparison_data, aes(x = facility, y = count, fill = region)) +
+  geom_col(position = "dodge") +
+  scale_fill_manual(values = c(
+    "Western Montana (WMHCC)" = "seagreen",
+    "Maine" = "maroon"
+  )) +
+  coord_flip() +
+  labs(
+    title = "Healthcare Infrastructure: Western Montana vs. Maine",
+    subtitle = "Maine has 1 burn center; Western Montana has 0 burn centers",
+    x = "",
+    y = "Number of Facilities",
+    fill = "Region"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+```{r}
+
+```
